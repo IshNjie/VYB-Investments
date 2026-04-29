@@ -1,19 +1,29 @@
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+from IPython.display import display
 
 
 class StockAnalysis:
-    def __init__(self, ticker: str):
+    def __init__(self, ticker: str, period: str = "2y"):
         self.ticker_symbol = ticker.upper()
         self.ticker = yf.Ticker(self.ticker_symbol)
         self._data = None
+        self.period = period
     
 
-    def get_data(self, period: str = "2y"):
+    def get_data(self, period: str = None):
         """
         Fetch historical close price data (default: last 2 years).
+        period: str
+            The period for which to fetch data. Valid options include:
+            '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'
+
+        Default is 5 years to provide a longer-term view, but can be adjusted as needed.
         """
+        if period is None:
+            period = self.period
         hist = self.ticker.history(period=period)
 
         if hist.empty:
@@ -22,20 +32,29 @@ class StockAnalysis:
         self._data = hist[['Close']].copy()
         return self._data
     
-    def plot_data(self):
+    def plot_data(self,period: str = None,moving_window: int = None):
         """
         Plot the historical close price data.
+        moving_window: int or None
+            If specified, adds a moving average line with the given window size (e.g., 50 for 50-day MA).
         """
 
-        ## Remember to add option to specify moving average
-
+        if period is None:
+            period = self.period
 
         if self._data is None:
             print("Data not loaded. Calling get_data() first...")
-            self.get_data()
+            self.get_data(period=period)
         
-        plt.figure(figsize=(12, 6))
+        # Add moving average if specified
+        if moving_window is not None:
+            self._data['MA'] = self._data['Close'].rolling(window=moving_window).mean()
+        
+        plt.figure(figsize=(10, 5))
         plt.plot(self._data.index, self._data['Close'], label='Close Price')
+
+        if 'MA' in self._data.columns:
+            plt.plot(self._data.index, self._data['MA'], label=f"{moving_window} Day Moving Average")
         plt.title(f"{self.ticker_symbol} Close Price Over Time")
         plt.xlabel("Date")
         plt.ylabel("Price")
@@ -43,12 +62,45 @@ class StockAnalysis:
         plt.grid()
         plt.show()
     
-    def benchmark(self, benchmark_tickers=None, period: str = "2y"):
+    # def benchmark fundamentals
+
+    def comparisons(self, tickers: list[str]):
         """
-        Compare this stock against multiple benchmarks using normalized returns.
+        Compare fundamental metrics (P/E, EPS, Beta, Market Cap) of this stock against a list of other tickers.
+        tickers: list[str]
+            A list of ticker symbols to compare against. The current stock's ticker will be included automatically
+        """
+
+        tickers.append(self.ticker_symbol)
+
+        data = []
+        for t in tickers:
+            info = yf.Ticker(t).info
+            data.append({
+                "Ticker": t,
+                "P/E": info.get("trailingPE"),
+                "EPS": info.get("trailingEps"),
+                "Beta": info.get("beta"),
+                "Mkt Cap": info.get("marketCap"),
+            })
+
+        df = pd.DataFrame(data)
+        
+        df = df.dropna(subset=["Mkt Cap"])
+        df['Mkt Cap'] = df['Mkt Cap'].apply(lambda x: f"{x:,}")
+        
+
+        print("\nFundamental Comparison - if available:")
+        display(df)
+
+    def benchmark(self, benchmark_tickers=None, period: str = None):
+        """
+        Compare this stock against multiple benchmarks using normalised returns.
             
         benchmark_tickers: list[str] or str
         """
+        if period is None:
+            period = self.period
 
         if benchmark_tickers is None:
             print("No benchmark tickers provided, defaulting to S&P 500 (^GSPC).")
@@ -59,8 +111,8 @@ class StockAnalysis:
             benchmark_tickers = [benchmark_tickers]
         
         
-        if self._data is None:
-            self.get_data(period=period)
+        #if self._data is None:
+        self.get_data(period=period)
         
         combined = self._data.copy()
         combined.columns = [self.ticker_symbol]
@@ -76,26 +128,23 @@ class StockAnalysis:
                 
             combined[ticker] = hist['Close']
         
-        # Align and drop missing values
-        combined = combined.dropna()
-        
         try:
-            # Normalize (start at 1)
-            normalized = combined / combined.iloc[0]
+            # Normalise (start at 1)
+            normalised = combined / combined.iloc[0]
         except Exception as e:
             print(f"Error - Select a Benchmark of the same trading calendar")
             return
         
         # Plot comparison
-        plt.figure(figsize=(12, 6))
-        for col in normalized.columns:
-            plt.plot(normalized.index, normalized[col], label=col)
+        plt.figure(figsize=(10, 5))
+        for col in normalised.columns:
+            plt.plot(normalised.index, normalised[col], label=col)
         
-        plt.title(f"{self.ticker_symbol} vs Benchmarks (Normalized Returns)")
+        plt.title(f"{self.ticker_symbol} vs Benchmarks (Normalised Returns)")
         plt.xlabel("Date")
-        plt.ylabel("Normalized Return")
+        plt.ylabel("Normalised Return")
         plt.legend()
         plt.grid()
         plt.show()
         
-        ##return normalized
+        self.comparisons(benchmark_tickers)
