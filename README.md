@@ -17,6 +17,8 @@ This repository contains a `StockAnalysis` class that simplifies:
 - Plot closing price trends
 - Compare a stock against multiple benchmarks (User discretion)
 - Normalized return comparison (all series start at 1)
+- Plots Estimated vs Reported Earnings
+- Shows key financials
 
 ---
 
