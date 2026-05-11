@@ -284,11 +284,11 @@ class StockAnalysis:
             if quarterly is not None:
                 income = stock.quarterly_income_stmt
                 balance = stock.quarterly_balance_sheet
-                period = "Quarterly"
+                #period = "Quarterly"
             else:
                 income = stock.income_stmt
                 balance = stock.balance_sheet
-                period = "Annual"
+                #period = "Annual"
 
             ####### Income
             if income.empty or balance.empty:
@@ -335,6 +335,14 @@ class StockAnalysis:
 
             balance_df = balance_df.iloc[:4]
             balance_df = balance_df.sort_index(ascending=True)
+
+            income_cols = income_df.columns.tolist()
+            for i in income_cols:
+                income_df[i] = income_df[i].apply(lambda x: f"{x:,}")
+
+            balance_cols = balance_df.columns.tolist()
+            for j in balance_cols:
+                balance_df[j] = balance_df[j].apply(lambda x: f"{x:,}")
 
             return income_df.transpose(), balance_df.transpose()
         
